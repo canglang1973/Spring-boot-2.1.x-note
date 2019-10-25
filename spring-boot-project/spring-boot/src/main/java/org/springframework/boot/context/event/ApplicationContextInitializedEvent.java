@@ -24,6 +24,7 @@ import org.springframework.context.ConfigurableApplicationContext;
  * Event published when a {@link SpringApplication} is starting up and the
  * {@link ApplicationContext} is prepared and ApplicationContextInitializers have been
  * called but before any bean definitions are loaded.
+ * 在启动{@link SpringApplication}并准备好{@link ApplicationContext}并已调用ApplicationContextInitializers时（但在加载任何bean定义之前）发布的事件。
  *
  * @author Artsiom Yudovin
  * @since 2.1.0

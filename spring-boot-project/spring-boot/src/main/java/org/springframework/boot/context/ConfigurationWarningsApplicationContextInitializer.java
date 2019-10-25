@@ -124,6 +124,7 @@ public class ConfigurationWarningsApplicationContextInitializer
 
 	/**
 	 * {@link Check} for {@code @ComponentScan} on problematic package.
+	 * 为@ComponentScan检查有问题的包
 	 */
 	protected static class ComponentScanPackageCheck implements Check {
 

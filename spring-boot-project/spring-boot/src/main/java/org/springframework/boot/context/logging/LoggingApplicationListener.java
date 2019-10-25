@@ -80,6 +80,13 @@ import org.springframework.util.StringUtils;
  * </li>
  * </ul>
  *
+ * 在应用开始启动时SpringApplication->run()->listeners.starting()调用4个
+ * 0 = {LoggingApplicationListener}
+ * 1 = {BackgroundPreinitializer}
+ * 2 = {DelegatingApplicationListener}
+ * 3 = {LiquibaseServiceLocatorApplicationListener}
+ * listener之第一个
+ *
  * @author Dave Syer
  * @author Phillip Webb
  * @author Andy Wilkinson

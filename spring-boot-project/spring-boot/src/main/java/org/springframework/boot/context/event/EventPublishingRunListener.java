@@ -49,6 +49,7 @@ public class EventPublishingRunListener implements SpringApplicationRunListener,
 
 	private final String[] args;
 
+	//一个简单的事件广播器,主要用于上下文还没加载好或上下文加载失败需要广播事件的时候使用
 	private final SimpleApplicationEventMulticaster initialMulticaster;
 
 	public EventPublishingRunListener(SpringApplication application, String[] args) {
@@ -56,6 +57,7 @@ public class EventPublishingRunListener implements SpringApplicationRunListener,
 		this.args = args;
 		this.initialMulticaster = new SimpleApplicationEventMulticaster();
 		for (ApplicationListener<?> listener : application.getListeners()) {
+			//给广播器初始化所有的监听器listener
 			this.initialMulticaster.addApplicationListener(listener);
 		}
 	}
@@ -67,17 +69,20 @@ public class EventPublishingRunListener implements SpringApplicationRunListener,
 
 	@Override
 	public void starting() {
+		//发布应用开始启动事件ApplicationStartingEvent
 		this.initialMulticaster.multicastEvent(new ApplicationStartingEvent(this.application, this.args));
 	}
 
 	@Override
 	public void environmentPrepared(ConfigurableEnvironment environment) {
+		//发布环境已经准备好的事件ApplicationEnvironmentPreparedEvent
 		this.initialMulticaster
 				.multicastEvent(new ApplicationEnvironmentPreparedEvent(this.application, this.args, environment));
 	}
 
 	@Override
 	public void contextPrepared(ConfigurableApplicationContext context) {
+		//发布上下文已经初始化完毕事件ApplicationContextInitializedEvent,此实现在2.1.0添加,在此之前为空实现,但是此时不存在监听此事件的listener
 		this.initialMulticaster
 				.multicastEvent(new ApplicationContextInitializedEvent(this.application, this.args, context));
 	}
@@ -86,20 +91,42 @@ public class EventPublishingRunListener implements SpringApplicationRunListener,
 	public void contextLoaded(ConfigurableApplicationContext context) {
 		for (ApplicationListener<?> listener : this.application.getListeners()) {
 			if (listener instanceof ApplicationContextAware) {
+				/**
+				 * ApplicationContextAware:
+				 * 希望由在其运行的{@link ApplicationContext}收到通知的任何对象实现的接口。
+				 * 例如，当对象需要访问一组协作bean时，实现此接口很有意义。请注意，对于bean查找而言，通过bean引用进行配置比仅实现该接口更可取。
+				 * 如果对象需要访问文件资源（例如，想要调用{@code getResource}，想要发布应用程序事件或需要访问MessageSource），则也可以实现此接口。
+				 * 但是，在这种特定情况下，最好实现更具体的{@link ResourceLoaderAware}，
+				 * {@link ApplicationEventPublisherAware}或{@link MessageSourceAware}接口。
+				 * 请注意，文件资源依赖项也可以作为{@link org.springframework.core.io.Resource}类型的bean属性公开，通过Strings填充，
+				 * 并且由bean工厂自动进行类型转换。这样就无需为了访问特定文件资源而实现任何回调接口。
+				 *  {@link org.springframework.context.support.ApplicationObjectSupport}是应用程序对象的便捷基类，实现了此接口。
+				 *  有关所有bean生命周期方法的列表，请参阅 {@link org.springframework.beans.factory.BeanFactory BeanFactory javadocs}。
+				 */
 				((ApplicationContextAware) listener).setApplicationContext(context);
 			}
 			context.addApplicationListener(listener);
 		}
+		/**
+		 * 资源已加载但还没有刷新 可以开始使用环境资源Environment了 发布ApplicationPreparedEvent
+		 * 依次执行以下listener
+		 * 0 = {ConfigFileApplicationListener} 添加适当的后处理器PropertySourceOrderingPostProcessor以后配置属性源
+		 * 1 = {LoggingApplicationListener} 将loggingSystem注入beanFactory
+		 * 2 = {BackgroundPreinitializer} 此监听器对于事件ApplicationPreparedEvent什么也没做
+		 * 3 = {DelegatingApplicationListener}此监听器对于事件ApplicationPreparedEvent什么也没做
+		 */
 		this.initialMulticaster.multicastEvent(new ApplicationPreparedEvent(this.application, this.args, context));
 	}
 
 	@Override
 	public void started(ConfigurableApplicationContext context) {
+		//发布应用已启动事件ApplicationStartedEvent
 		context.publishEvent(new ApplicationStartedEvent(this.application, this.args, context));
 	}
 
 	@Override
 	public void running(ConfigurableApplicationContext context) {
+		//发布应用已经准备好接受请求的事件ApplicationReadyEvent
 		context.publishEvent(new ApplicationReadyEvent(this.application, this.args, context));
 	}
 
@@ -109,11 +136,13 @@ public class EventPublishingRunListener implements SpringApplicationRunListener,
 		if (context != null && context.isActive()) {
 			// Listeners have been registered to the application context so we should
 			// use it at this point if we can
+			//如果监听器已经注册到了上下文中,我们就使用上下文发布事件
 			context.publishEvent(event);
 		}
 		else {
 			// An inactive context may not have a multicaster so we use our multicaster to
 			// call all of the context's listeners instead
+			//非活动上下文可能没有多播程序，因此使用自己的多播程序调用上下文的所有侦听器
 			if (context instanceof AbstractApplicationContext) {
 				for (ApplicationListener<?> listener : ((AbstractApplicationContext) context)
 						.getApplicationListeners()) {

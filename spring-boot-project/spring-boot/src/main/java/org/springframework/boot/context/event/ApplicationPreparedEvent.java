@@ -25,7 +25,8 @@ import org.springframework.core.env.Environment;
  * Event published as when a {@link SpringApplication} is starting up and the
  * {@link ApplicationContext} is fully prepared but not refreshed. The bean definitions
  * will be loaded and the {@link Environment} is ready for use at this stage.
- *
+ *当{@link SpringApplication}启动且 {@link ApplicationContext}已准备齐全但未刷新时发布的事件。
+ *  Bean定义将被加载，并且在此阶段可以使用{@link Environment}。
  * @author Dave Syer
  * @since 1.0.0
  */

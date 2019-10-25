@@ -162,6 +162,7 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 	@Override
 	public void onApplicationEvent(ApplicationEvent event) {
 		if (event instanceof ApplicationEnvironmentPreparedEvent) {
+			//准备环境时调用
 			onApplicationEnvironmentPreparedEvent((ApplicationEnvironmentPreparedEvent) event);
 		}
 		if (event instanceof ApplicationPreparedEvent) {
@@ -170,9 +171,16 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 	}
 
 	private void onApplicationEnvironmentPreparedEvent(ApplicationEnvironmentPreparedEvent event) {
+		//加载所有的环境处理器
 		List<EnvironmentPostProcessor> postProcessors = loadPostProcessors();
 		postProcessors.add(this);
 		AnnotationAwareOrderComparator.sort(postProcessors);
+		/**依次调用以下处理器
+		 * 0 = {SystemEnvironmentPropertySourceEnvironmentPostProcessor} 用OriginAwareSystemEnvironmentPropertySource替换SystemEnvironmentPropertySource
+		 * 1 = {SpringApplicationJsonEnvironmentPostProcessor} 解析spring.application.json/SPRING_APPLICATION_JSON配置的json并添加入到PropertySource中
+		 * 2 = {CloudFoundryVcapEnvironmentPostProcessor} 暂时不知道有什么用 只知道与spring cloud有关
+		 * 3 = {ConfigFileApplicationListener}
+		 */
 		for (EnvironmentPostProcessor postProcessor : postProcessors) {
 			postProcessor.postProcessEnvironment(event.getEnvironment(), event.getSpringApplication());
 		}
@@ -189,6 +197,7 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 
 	private void onApplicationPreparedEvent(ApplicationEvent event) {
 		this.logger.switchTo(ConfigFileApplicationListener.class);
+		//添加适当的后处理器以后配置属性源
 		addPostProcessors(((ApplicationPreparedEvent) event).getApplicationContext());
 	}
 
@@ -200,6 +209,7 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 	 */
 	protected void addPropertySources(ConfigurableEnvironment environment, ResourceLoader resourceLoader) {
 		RandomValuePropertySource.addToEnvironment(environment);
+		//关键来了 ,此处开始加载用户自定义的配置文件.yaml,.properties
 		new Loader(environment, resourceLoader).load();
 	}
 
@@ -277,6 +287,7 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 
 	/**
 	 * Loads candidate property sources and configures the active profiles.
+	 * 加载候选属性源并配置活动概要文件.
 	 */
 	private class Loader {
 
@@ -304,6 +315,7 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 			this.environment = environment;
 			this.placeholdersResolver = new PropertySourcesPlaceholdersResolver(this.environment);
 			this.resourceLoader = (resourceLoader != null) ? resourceLoader : new DefaultResourceLoader();
+			//此处加载到两个PropertySourceLoader: PropertiesPropertySourceLoader,YamlPropertySourceLoader
 			this.propertySourceLoaders = SpringFactoriesLoader.loadFactories(PropertySourceLoader.class,
 					getClass().getClassLoader());
 		}
@@ -331,10 +343,12 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 		 * Initialize profile information from both the {@link Environment} active
 		 * profiles and any {@code spring.profiles.active}/{@code spring.profiles.include}
 		 * properties that are already set.
+		 * 从{@link Environment}活动配置文件和任何已设置的{@code spring.profiles.active}{@code spring.profiles.include}属性中初始化配置文件信息
 		 */
 		private void initializeProfiles() {
 			// The default profile for these purposes is represented as null. We add it
 			// first so that it is processed first and has lowest priority.
+			//用于这些目的的默认配置文件表示为null。我们先添加以便首先处理它并具有最低的优先级。
 			this.profiles.add(null);
 			Set<Profile> activatedViaProperty = getProfilesActivatedViaProperty();
 			this.profiles.addAll(getOtherActiveProfiles(activatedViaProperty));
@@ -350,8 +364,10 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 		}
 
 		private Set<Profile> getProfilesActivatedViaProperty() {
+			//判断是否有激活的profile
 			if (!this.environment.containsProperty(ACTIVE_PROFILES_PROPERTY)
 					&& !this.environment.containsProperty(INCLUDE_PROFILES_PROPERTY)) {
+				//没有激活的profile
 				return Collections.emptySet();
 			}
 			Binder binder = Binder.get(this.environment);
@@ -628,6 +644,10 @@ public class ConfigFileApplicationListener implements EnvironmentPostProcessor, 
 			return locations;
 		}
 
+		/**
+		 * 如果环境变量没有配置spring.config.name 则返回默认文件名application
+		 * @return
+		 */
 		private Set<String> getSearchNames() {
 			if (this.environment.containsProperty(CONFIG_NAME_PROPERTY)) {
 				String property = this.environment.getProperty(CONFIG_NAME_PROPERTY);

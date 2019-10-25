@@ -34,6 +34,8 @@ import org.springframework.core.env.SystemEnvironmentPropertySource;
  * {@link OriginAwareSystemEnvironmentPropertySource} that can track the
  * {@link SystemEnvironmentOrigin} for every system environment property.
  *
+ *一个{@link EnvironmentPostProcessor}，它用 {@link OriginAwareSystemEnvironmentPropertySource}替换systemEnvironment
+ * {@link SystemEnvironmentPropertySource}，可以跟踪每个系统环境属性的* {@link SystemEnvironmentOrigin}。
  * @author Madhura Bhave
  * @since 2.0.0
  */

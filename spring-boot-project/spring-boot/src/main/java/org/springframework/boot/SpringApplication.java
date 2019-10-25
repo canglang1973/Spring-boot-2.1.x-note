@@ -256,7 +256,7 @@ public class SpringApplication {
 	 * documentation for details. The instance can be customized before calling
 	 * {@link #run(String...)}.
 	 * @param resourceLoader the resource loader to use
-	 * @param primarySources the primary bean sources
+	 * @param primarySources the primary bean sources  #spring boot 项目的启动主类
 	 * @see #run(Class, String[])
 	 * @see #setSources(Set)
 	 */
@@ -265,9 +265,13 @@ public class SpringApplication {
 		this.resourceLoader = resourceLoader;
 		Assert.notNull(primarySources, "PrimarySources must not be null");
 		this.primarySources = new LinkedHashSet<>(Arrays.asList(primarySources));
+		//确定web应用的类型
 		this.webApplicationType = WebApplicationType.deduceFromClasspath();
+		//Spring SPI加载所有spring.factories文件中的ApplicationContextInitializer实现类
 		setInitializers((Collection) getSpringFactoriesInstances(ApplicationContextInitializer.class));
+		//Spring SPI加载所有spring.factories文件中的ApplicationListener实现类
 		setListeners((Collection) getSpringFactoriesInstances(ApplicationListener.class));
+		//确定应用启动主类
 		this.mainApplicationClass = deduceMainApplicationClass();
 	}
 
@@ -297,18 +301,46 @@ public class SpringApplication {
 		stopWatch.start();
 		ConfigurableApplicationContext context = null;
 		Collection<SpringBootExceptionReporter> exceptionReporters = new ArrayList<>();
+		//设置java.awt.headless
 		configureHeadlessProperty();
+		//获取SpringApplicationRunListeners 也就是SpringApplicationRunListener的集合 内部持有一个list
 		SpringApplicationRunListeners listeners = getRunListeners(args);
+		/**
+		 * 此处依次调用以下4个listener,最早期初始化
+		 *  0 = {LoggingApplicationListener} -> 配置日志系统LoggingSystem
+		 *  1 = {BackgroundPreinitializer} -> 后台提前加载6个initializer
+		 *  	ConversionServiceInitializer
+		 * 		ValidationInitializer
+		 * 		MessageConverterInitializer
+		 * 		MBeanFactoryInitializer
+		 * 		JacksonInitializer
+		 * 		CharsetInitializer
+		 *  2 = {DelegatingApplicationListener}
+		 *  3 = {LiquibaseServiceLocatorApplicationListener}
+		 */
 		listeners.starting();
 		try {
 			ApplicationArguments applicationArguments = new DefaultApplicationArguments(args);
+			//开始准备环境
 			ConfigurableEnvironment environment = prepareEnvironment(listeners, applicationArguments);
+			//跳过搜索java.beans.BeanInfo类
 			configureIgnoreBeanInfo(environment);
+			//打印Banner,可以通过Banner.Mode.OFF打印
 			Banner printedBanner = printBanner(environment);
+			/**
+			  *创建应用上下文AnnotationConfigServletWebServerApplicationContext,使用BeanUtils实例化类,
+			 * 此时会进入AnnotationConfigServletWebServerApplicationContext的构造方法
+			 * 此处会在给定的注册表中注册所有相关的注解处理器AnnotationConfigProcessor:
+			 * ConfigurationClassPostProcessor,	AutowiredAnnotationBeanPostProcessor,RequiredAnnotationBeanPostProcessor,CommonAnnotationBeanPostProcessor
+			 * EventListenerMethodProcessor,DefaultEventListenerFactory,org.springframework.orm.jpa.support.PersistenceAnnotationBeanPostProcessor
+			 */
 			context = createApplicationContext();
+			//回调接口，用于支持SpringApplication的自定义报告启动错误
 			exceptionReporters = getSpringFactoriesInstances(SpringBootExceptionReporter.class,
 					new Class[] { ConfigurableApplicationContext.class }, context);
+			//准备上下文
 			prepareContext(context, environment, listeners, applicationArguments, printedBanner);
+			//刷新上下文,此处直接进入方法org.springframework.context.support.AbstractApplicationContext.refresh()
 			refreshContext(context);
 			afterRefresh(context, applicationArguments);
 			stopWatch.stop();
@@ -335,13 +367,25 @@ public class SpringApplication {
 
 	private ConfigurableEnvironment prepareEnvironment(SpringApplicationRunListeners listeners,
 			ApplicationArguments applicationArguments) {
-		// Create and configure the environment
+		// 创建和配置环境
 		ConfigurableEnvironment environment = getOrCreateEnvironment();
 		configureEnvironment(environment, applicationArguments.getSourceArgs());
 		ConfigurationPropertySources.attach(environment);
+		/**
+		 * 依次调用以下Listener
+		 * 0 = {ConfigFileApplicationListener} 加载应用所有配置包括自定义的properties/yml
+		 * 1 = {AnsiOutputApplicationListener} SpringBoot之彩色输出spring.output.ansi.enabled设置
+		 * 2 = {LoggingApplicationListener} 初始化日志系统
+		 * 3 = {ClasspathLoggingApplicationListener} 打印classpath
+		 * 4 = {BackgroundPreinitializer} 此处什么事情也没有做
+		 * 5 = {DelegatingApplicationListener}  向其他委托的context.listener.classes   listener发送ApplicationEnvironmentPreparedEvent事件
+		 * 6 = {FileEncodingApplicationListener} 检查文件编码
+		 */
 		listeners.environmentPrepared(environment);
+		//将环境绑定到SpringApplication
 		bindToSpringApplication(environment);
 		if (!this.isCustomEnvironment) {
+			//将给定的{@code环境}转换为给定的{@link StandardEnvironment} 类型。如果环境已经是同一类型，则不执行任何转换，并且将其返回原样
 			environment = new EnvironmentConverter(getClassLoader()).convertEnvironmentIfNecessary(environment,
 					deduceEnvironmentClass());
 		}
@@ -362,15 +406,29 @@ public class SpringApplication {
 
 	private void prepareContext(ConfigurableApplicationContext context, ConfigurableEnvironment environment,
 			SpringApplicationRunListeners listeners, ApplicationArguments applicationArguments, Banner printedBanner) {
+		//给上下文设置环境变量  environment包括所有在prepareEnvironment()中加载的所有配置
 		context.setEnvironment(environment);
 		postProcessApplicationContext(context);
+		/**
+		 * 依次执行以下ApplicationContextInitializer initialize(),此处的Initializer就是在SpringApplication的构造方法中初始化的
+		 * 0 = {DelegatingApplicationContextInitializer}委托加载并执行context.initializer.classes下配置的其它Initializer
+		 * 1 = {ContextIdApplicationContextInitializer}设置ApplicationContext上下文id,如果spring.application.name配置有值则使用此值,否则使用默认值"application"
+		 * 2 = {ConfigurationWarningsApplicationContextInitializer}报告常见配置错误的警告,添加一个新的ConfigurationWarningsPostProcessor
+		 * 3 = {ServerPortInfoApplicationContextInitializer}添加一个ApplicationListener:ServerPortInfoApplicationContextInitializer,监听事件(WebServerInitializedEvent)设置webport
+		 * 4 = {SharedMetadataReaderFactoryContextInitializer}添加一个新的CachingMetadataReaderFactoryPostProcessor,{@link ApplicationContextInitializer}在{@link ConfigurationClassPostProcessor}和Spring Boot之间创建共享的{@link CachingMetadataReaderFactory}。
+		 * 5 = {ConditionEvaluationReportLoggingListener}添加一个ConditionEvaluationReportListener用于打印报告日志
+		 */
 		applyInitializers(context);
+		//发送ApplicationContextInitializedEvent事件
 		listeners.contextPrepared(context);
 		if (this.logStartupInfo) {
+			//打印应用启动日志
 			logStartupInfo(context.getParent() == null);
+			//打印激活的profile
 			logStartupProfileInfo(context);
 		}
 		// Add boot specific singleton beans
+		//添加引导特定的单例bean
 		ConfigurableListableBeanFactory beanFactory = context.getBeanFactory();
 		beanFactory.registerSingleton("springApplicationArguments", applicationArguments);
 		if (printedBanner != null) {
@@ -383,6 +441,7 @@ public class SpringApplication {
 		// Load the sources
 		Set<Object> sources = getAllSources();
 		Assert.notEmpty(sources, "Sources must not be empty");
+		//将bean加载到应用程序上下文中。
 		load(context, sources.toArray(new Object[0]));
 		listeners.contextLoaded(context);
 	}
@@ -406,6 +465,7 @@ public class SpringApplication {
 
 	private SpringApplicationRunListeners getRunListeners(String[] args) {
 		Class<?>[] types = new Class<?>[] { SpringApplication.class, String[].class };
+		//SPI 加载 SpringApplicationRunListener的实现类 SpringApplicationRunListener只有一个实现类EventPublishingRunListener
 		return new SpringApplicationRunListeners(logger,
 				getSpringFactoriesInstances(SpringApplicationRunListener.class, types, this, args));
 	}
@@ -417,8 +477,11 @@ public class SpringApplication {
 	private <T> Collection<T> getSpringFactoriesInstances(Class<T> type, Class<?>[] parameterTypes, Object... args) {
 		ClassLoader classLoader = getClassLoader();
 		// Use names and ensure unique to protect against duplicates
+		//使用名称并确保唯一以防止重复
 		Set<String> names = new LinkedHashSet<>(SpringFactoriesLoader.loadFactoryNames(type, classLoader));
+		//实例化所有需要加载的type类型接口的子类
 		List<T> instances = createSpringFactoriesInstances(type, parameterTypes, classLoader, args, names);
+		//根据@Order 或者Ordered 排序
 		AnnotationAwareOrderComparator.sort(instances);
 		return instances;
 	}
@@ -448,6 +511,8 @@ public class SpringApplication {
 		}
 		switch (this.webApplicationType) {
 		case SERVLET:
+			//此处创建环境时会加载入所有的系统环境变量 StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME 并保存到environment.getPropertySources()中
+			//org.springframework.boot.env.SystemEnvironmentPropertySourceEnvironmentPostProcessor.postProcessEnvironment中获取的系统变量就是这里加载进来的
 			return new StandardServletEnvironment();
 		case REACTIVE:
 			return new StandardReactiveWebEnvironment();
@@ -462,6 +527,11 @@ public class SpringApplication {
 	 * {@link #configureProfiles(ConfigurableEnvironment, String[])} in that order.
 	 * Override this method for complete control over Environment customization, or one of
 	 * the above for fine-grained control over property sources or profiles, respectively.
+	 *
+	 * 模板方法依次委派给 {@link #configurePropertySources（ConfigurableEnvironment，String []）}和
+	 * {@link #configureProfiles（ConfigurableEnvironment，String []）}。
+	 * 覆盖此方法以完全控制环境自定义，或者覆盖上述方法之一以分别对属性源或配置文件进行细粒度控制。
+	 *
 	 * @param environment this application's environment
 	 * @param args arguments passed to the {@code run} method
 	 * @see #configureProfiles(ConfigurableEnvironment, String[])
@@ -508,6 +578,7 @@ public class SpringApplication {
 	 * Configure which profiles are active (or active by default) for this application
 	 * environment. Additional profiles may be activated during configuration file
 	 * processing via the {@code spring.profiles.active} property.
+	 * 配置该应用程序环境中哪些配置文件处于活动状态（或默认情况下处于活动状态）。在配置文件*处理期间，可以通过{@code spring.profiles.active}属性激活其他配置文件
 	 * @param environment this application's environment
 	 * @param args arguments passed to the {@code run} method
 	 * @see #configureEnvironment(ConfigurableEnvironment, String[])
@@ -675,6 +746,7 @@ public class SpringApplication {
 		if (logger.isDebugEnabled()) {
 			logger.debug("Loading source " + StringUtils.arrayToCommaDelimitedString(sources));
 		}
+		//创建bean定义loader
 		BeanDefinitionLoader loader = createBeanDefinitionLoader(getBeanDefinitionRegistry(context), sources);
 		if (this.beanNameGenerator != null) {
 			loader.setBeanNameGenerator(this.beanNameGenerator);

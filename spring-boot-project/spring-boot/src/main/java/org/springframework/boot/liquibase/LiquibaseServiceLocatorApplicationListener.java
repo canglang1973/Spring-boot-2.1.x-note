@@ -28,7 +28,7 @@ import org.springframework.util.ClassUtils;
 /**
  * {@link ApplicationListener} that replaces the liquibase {@link ServiceLocator} with a
  * version that works with Spring Boot executable archives.
- *
+ * Liquibase是一个用于跟踪、管理和应用数据库变化的开源的数据库重构工具。它将所有数据库的变化（包括结构和数据）都保存在XML文件中，便于版本控制。
  * @author Phillip Webb
  * @author Dave Syer
  * @since 1.0.0
@@ -47,6 +47,7 @@ public class LiquibaseServiceLocatorApplicationListener implements ApplicationLi
 
 	/**
 	 * Inner class to prevent class not found issues.
+	 * 内部类防止类未找到问题
 	 */
 	private static class LiquibasePresent {
 

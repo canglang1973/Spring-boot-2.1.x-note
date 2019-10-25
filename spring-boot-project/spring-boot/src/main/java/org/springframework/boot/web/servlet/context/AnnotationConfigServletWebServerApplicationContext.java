@@ -71,7 +71,9 @@ public class AnnotationConfigServletWebServerApplicationContext extends ServletW
 	 * {@linkplain #refresh refreshed}.
 	 */
 	public AnnotationConfigServletWebServerApplicationContext() {
+		//负责从注解类型解析注册bean信息到容器中。
 		this.reader = new AnnotatedBeanDefinitionReader(this);
+		//基本上功能和reader一致，只是加载来源不同而已，在初始化的过程中，不加载上面一堆处理器，只是增加了@Component的filters
 		this.scanner = new ClassPathBeanDefinitionScanner(this);
 	}
 
@@ -193,7 +195,9 @@ public class AnnotationConfigServletWebServerApplicationContext extends ServletW
 
 	@Override
 	protected void prepareRefresh() {
+		//清除本地元数据缓存（如果有），以删除所有缓存的类元数据
 		this.scanner.clearCache();
+		//调用父类的org.springframework.context.support.AbstractApplicationContext.prepareRefresh()
 		super.prepareRefresh();
 	}
 

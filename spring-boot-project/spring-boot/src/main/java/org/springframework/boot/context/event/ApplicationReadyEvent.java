@@ -24,6 +24,8 @@ import org.springframework.context.ConfigurableApplicationContext;
  * ready to service requests. The source of the event is the {@link SpringApplication}
  * itself, but beware of modifying its internal state since all initialization steps will
  * have been completed by then.
+ * 事件可能在很晚才发布，表明该应用程序已准备就绪，可以为请求提供服务。事件的来源是{@link SpringApplication}
+ * 本身，但是请注意不要修改其内部状态，因为所有初始化步骤都将在之前完成。
  *
  * @author Stephane Nicoll
  * @since 1.3.0

@@ -38,9 +38,12 @@ import org.springframework.util.Assert;
  * to the log. Reports are logged at the {@link LogLevel#DEBUG DEBUG} level. A crash
  * report triggers an info output suggesting the user runs again with debug enabled to
  * display the report.
+ * 以DEBUG模式打印报告到日志
+ * 崩溃报告会触发信息输出，建议用户在启用调试的情况下再次运行以显示报告。
  * <p>
  * This initializer is not intended to be shared across multiple application context
  * instances.
+ * 不应在多个应用程序上下文实例之间共享此初始化程序
  *
  * @author Greg Turnquist
  * @author Dave Syer

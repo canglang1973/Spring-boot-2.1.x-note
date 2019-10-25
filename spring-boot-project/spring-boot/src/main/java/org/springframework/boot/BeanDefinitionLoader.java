@@ -152,6 +152,7 @@ class BeanDefinitionLoader {
 			GroovyBeanDefinitionSource loader = BeanUtils.instantiateClass(source, GroovyBeanDefinitionSource.class);
 			load(loader);
 		}
+		//判断source类上有没有注解@Component
 		if (isComponent(source)) {
 			this.annotatedReader.register(source);
 			return 1;

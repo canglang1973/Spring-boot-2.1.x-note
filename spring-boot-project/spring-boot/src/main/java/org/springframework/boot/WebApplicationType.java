@@ -61,13 +61,16 @@ public enum WebApplicationType {
 	static WebApplicationType deduceFromClasspath() {
 		if (ClassUtils.isPresent(WEBFLUX_INDICATOR_CLASS, null) && !ClassUtils.isPresent(WEBMVC_INDICATOR_CLASS, null)
 				&& !ClassUtils.isPresent(JERSEY_INDICATOR_CLASS, null)) {
+			//该应用程序应作为反应式Web应用程序运行，并启动嵌入式反应式Web服务器。
 			return WebApplicationType.REACTIVE;
 		}
 		for (String className : SERVLET_INDICATOR_CLASSES) {
 			if (!ClassUtils.isPresent(className, null)) {
+				//该应用程序不应作为Web应用程序运行，也不启动嵌入式Web服务器。
 				return WebApplicationType.NONE;
 			}
 		}
+		//应用程序应作为基于Servlet的Web应用程序运行，并启动一个嵌入式Servlet Web服务器。
 		return WebApplicationType.SERVLET;
 	}
 
