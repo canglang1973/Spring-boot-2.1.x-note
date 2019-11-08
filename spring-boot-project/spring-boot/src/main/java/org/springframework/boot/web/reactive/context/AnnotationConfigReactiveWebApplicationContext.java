@@ -283,6 +283,8 @@ public class AnnotationConfigReactiveWebApplicationContext extends AbstractRefre
 	 * @see #getEnvironment()
 	 * @see #getBeanNameGenerator()
 	 * @see #getScopeMetadataResolver()
+	 *
+	 * 此处会在给定的注册表中注册所有相关的注释后处理器。注入AutowiredAnnotationBeanPostProcessor到容器中,用于处理@Autowired,@Value,@Inject 注入
 	 */
 	protected AnnotatedBeanDefinitionReader getAnnotatedBeanDefinitionReader(DefaultListableBeanFactory beanFactory) {
 		return new AnnotatedBeanDefinitionReader(beanFactory, getEnvironment());
