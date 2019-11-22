@@ -41,15 +41,20 @@ class OnEnabledResourceChainCondition extends SpringBootCondition {
 	@Override
 	public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata metadata) {
 		ConfigurableEnvironment environment = (ConfigurableEnvironment) context.getEnvironment();
+		// 获得spring.resources.chain.strategy.fixed.enabled 的配置,默认为false
 		boolean fixed = getEnabledProperty(environment, "strategy.fixed.", false);
+		// 获得spring.resources.chain.strategy.content.enabled 的配置,默认为false
 		boolean content = getEnabledProperty(environment, "strategy.content.", false);
+		// 获得spring.resources.chain.enabled 的配置,默认为null
 		Boolean chain = getEnabledProperty(environment, "", null);
 		Boolean match = ResourceProperties.Chain.getEnabled(fixed, content, chain);
 		ConditionMessage.Builder message = ConditionMessage.forCondition(ConditionalOnEnabledResourceChain.class);
 		if (match == null) {
 			if (ClassUtils.isPresent(WEBJAR_ASSET_LOCATOR, getClass().getClassLoader())) {
+				// 如果存在 org.webjars.WebJarAssetLocator,则返回匹配
 				return ConditionOutcome.match(message.found("class").items(WEBJAR_ASSET_LOCATOR));
 			}
+			// 否则返回不匹配
 			return ConditionOutcome.noMatch(message.didNotFind("class").items(WEBJAR_ASSET_LOCATOR));
 		}
 		if (match) {

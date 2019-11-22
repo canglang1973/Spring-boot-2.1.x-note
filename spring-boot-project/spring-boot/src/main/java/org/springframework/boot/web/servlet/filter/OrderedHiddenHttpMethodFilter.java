@@ -29,6 +29,7 @@ public class OrderedHiddenHttpMethodFilter extends HiddenHttpMethodFilter implem
 
 	/**
 	 * The default order is high to ensure the filter is applied before Spring Security.
+	 * 默认顺序很高，以确保在Spring Security之前应用过滤器。
 	 */
 	public static final int DEFAULT_ORDER = REQUEST_WRAPPER_FILTER_MAX_ORDER - 10000;
 

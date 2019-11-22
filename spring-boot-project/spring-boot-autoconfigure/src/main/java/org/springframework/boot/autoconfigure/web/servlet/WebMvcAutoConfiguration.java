@@ -137,22 +137,25 @@ import org.springframework.web.servlet.view.InternalResourceViewResolver;
  * @author Bruce Brouwer
  * @author Artsiom Yudovin
  * @since 2.0.0
+ * 就是对 spring mvc 进行自动化配置,取代继承WebMvcConfigurerAdapter的方式
  */
 @Configuration
-@ConditionalOnWebApplication(type = Type.SERVLET)
-@ConditionalOnClass({ Servlet.class, DispatcherServlet.class, WebMvcConfigurer.class })
-@ConditionalOnMissingBean(WebMvcConfigurationSupport.class)
-@AutoConfigureOrder(Ordered.HIGHEST_PRECEDENCE + 10)
-@AutoConfigureAfter({ DispatcherServletAutoConfiguration.class, TaskExecutionAutoConfiguration.class,
-		ValidationAutoConfiguration.class })
+@ConditionalOnWebApplication(type = Type.SERVLET)//web环境
+@ConditionalOnClass({Servlet.class, DispatcherServlet.class, WebMvcConfigurer.class})
+//当前类路径下存在Servlet, DispatcherServlet,WebMvcConfigurerAdapter
+@ConditionalOnMissingBean(WebMvcConfigurationSupport.class)//beanFactory中不存在WebMvcConfigurationSupport类型的bean
+@AutoConfigureOrder(Ordered.HIGHEST_PRECEDENCE + 10)//加载的优先级为Ordered.HIGHEST_PRECEDENCE + 10 –> Integer.MIN_VALUE + 10
+@AutoConfigureAfter({DispatcherServletAutoConfiguration.class, TaskExecutionAutoConfiguration.class,
+		ValidationAutoConfiguration.class})//在DispatcherServletAutoConfiguration, ValidationAutoConfiguration 加载后进行装配。
 public class WebMvcAutoConfiguration {
 
 	public static final String DEFAULT_PREFIX = "";
 
 	public static final String DEFAULT_SUFFIX = "";
 
-	private static final String[] SERVLET_LOCATIONS = { "/" };
+	private static final String[] SERVLET_LOCATIONS = {"/"};
 
+	//当beanFactory中不存在HiddenHttpMethodFilter类型的bean时注册
 	@Bean
 	@ConditionalOnMissingBean(HiddenHttpMethodFilter.class)
 	@ConditionalOnProperty(prefix = "spring.mvc.hiddenmethod.filter", name = "enabled", matchIfMissing = true)
@@ -160,6 +163,8 @@ public class WebMvcAutoConfiguration {
 		return new OrderedHiddenHttpMethodFilter();
 	}
 
+	//当beanFactory中不存在HttpPutFormContentFilter类型的bean
+	//并且spring.mvc.formcontent.putfilter.enabled 等于true.(默认是true)时,进行注册
 	@Bean
 	@ConditionalOnMissingBean(FormContentFilter.class)
 	@ConditionalOnProperty(prefix = "spring.mvc.formcontent.filter", name = "enabled", matchIfMissing = true)
@@ -176,9 +181,12 @@ public class WebMvcAutoConfiguration {
 
 	// Defined as a nested config to ensure WebMvcConfigurer is not read when not
 	// on the classpath
+	//是为了确保当该类不在类路径下时不会被读取到.
+	// 因此当ConfigurationClassParser#processConfigurationClass处理时,会调用ConfigurationClass#mergeImportedBy进行合并
+	// (因为在解析WebMvcAutoConfigurationAdapter时,首先加载了EnableWebMvcConfiguration的配置)
 	@Configuration
-	@Import(EnableWebMvcConfiguration.class)
-	@EnableConfigurationProperties({ WebMvcProperties.class, ResourceProperties.class })
+	@Import(EnableWebMvcConfiguration.class)//当加载该类时,会首先加载EnableWebMvcConfiguration
+	@EnableConfigurationProperties({WebMvcProperties.class, ResourceProperties.class})
 	@Order(0)
 	public static class WebMvcAutoConfigurationAdapter implements WebMvcConfigurer {
 
@@ -195,8 +203,8 @@ public class WebMvcAutoConfiguration {
 		final ResourceHandlerRegistrationCustomizer resourceHandlerRegistrationCustomizer;
 
 		public WebMvcAutoConfigurationAdapter(ResourceProperties resourceProperties, WebMvcProperties mvcProperties,
-				ListableBeanFactory beanFactory, ObjectProvider<HttpMessageConverters> messageConvertersProvider,
-				ObjectProvider<ResourceHandlerRegistrationCustomizer> resourceHandlerRegistrationCustomizerProvider) {
+											  ListableBeanFactory beanFactory, ObjectProvider<HttpMessageConverters> messageConvertersProvider,
+											  ObjectProvider<ResourceHandlerRegistrationCustomizer> resourceHandlerRegistrationCustomizerProvider) {
 			this.resourceProperties = resourceProperties;
 			this.mvcProperties = mvcProperties;
 			this.beanFactory = beanFactory;
@@ -232,6 +240,7 @@ public class WebMvcAutoConfiguration {
 					this.mvcProperties.getPathmatch().isUseRegisteredSuffixPattern());
 		}
 
+		// 配置媒体映射,默认没配置
 		@Override
 		public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
 			WebMvcProperties.Contentnegotiation contentnegotiation = this.mvcProperties.getContentnegotiation();
@@ -244,6 +253,7 @@ public class WebMvcAutoConfiguration {
 			mediaTypes.forEach(configurer::mediaType);
 		}
 
+		//当beanFactory中不存在InternalResourceViewResolver类型的bean是注册,默认前缀"",后缀为""
 		@Bean
 		@ConditionalOnMissingBean
 		public InternalResourceViewResolver defaultViewResolver() {
@@ -253,6 +263,7 @@ public class WebMvcAutoConfiguration {
 			return resolver;
 		}
 
+		//当beanFactory中存在View类型的bean并且不存在BeanNameViewResolver类型的bean时注册
 		@Bean
 		@ConditionalOnBean(View.class)
 		@ConditionalOnMissingBean
@@ -262,11 +273,13 @@ public class WebMvcAutoConfiguration {
 			return resolver;
 		}
 
+		//当beanFactory中存在ViewResolver的bean并且不存在id为viewResolver,类型为 ContentNegotiatingViewResolver类型的bean时注册.
 		@Bean
 		@ConditionalOnBean(ViewResolver.class)
 		@ConditionalOnMissingBean(name = "viewResolver", value = ContentNegotiatingViewResolver.class)
 		public ContentNegotiatingViewResolver viewResolver(BeanFactory beanFactory) {
 			ContentNegotiatingViewResolver resolver = new ContentNegotiatingViewResolver();
+			//这里使用在EnableWebMvcConfiguration中配置的ContentNegotiationManager
 			resolver.setContentNegotiationManager(beanFactory.getBean(ContentNegotiationManager.class));
 			// ContentNegotiatingViewResolver uses all the other view resolvers to locate
 			// a view so it should have a high precedence
@@ -274,6 +287,7 @@ public class WebMvcAutoConfiguration {
 			return resolver;
 		}
 
+		//当beanFactory中不存在LocaleResolver并且spring.mvc.locale 有值时进行注册
 		@Bean
 		@ConditionalOnMissingBean
 		@ConditionalOnProperty(prefix = "spring.mvc", name = "locale")
@@ -315,19 +329,26 @@ public class WebMvcAutoConfiguration {
 
 		@Override
 		public void addResourceHandlers(ResourceHandlerRegistry registry) {
+			// 如果spring.resources.addMappings 为false,则不进行处理
 			if (!this.resourceProperties.isAddMappings()) {
 				logger.debug("Default resource handling disabled");
 				return;
 			}
+			// 获得缓存时间,默认没配置
 			Duration cachePeriod = this.resourceProperties.getCache().getPeriod();
 			CacheControl cacheControl = this.resourceProperties.getCache().getCachecontrol().toHttpCacheControl();
 			if (!registry.hasMappingForPattern("/webjars/**")) {
+				// 如果ResourceHandlerRegistry中不包含/webjars/**的路径映射,
+				// 则添加 /webjars/** --> classpath:/META-INF/resources/webjars/ 的映射规则
 				customizeResourceHandlerRegistration(registry.addResourceHandler("/webjars/**")
 						.addResourceLocations("classpath:/META-INF/resources/webjars/")
 						.setCachePeriod(getSeconds(cachePeriod)).setCacheControl(cacheControl));
 			}
+			// 获得静态资源的映射路径,默认为 /**
 			String staticPathPattern = this.mvcProperties.getStaticPathPattern();
 			if (!registry.hasMappingForPattern(staticPathPattern)) {
+				// 如果ResourceHandlerRegistry中不包含静态资源的映射路径,
+				// 则添加 staticPathPattern --> classpath:/META-INF/resources/,classpath:/resources/,classpath:/static/, classpath:/public/ 的映射规则
 				customizeResourceHandlerRegistration(registry.addResourceHandler(staticPathPattern)
 						.addResourceLocations(getResourceLocations(this.resourceProperties.getStaticLocations()))
 						.setCachePeriod(getSeconds(cachePeriod)).setCacheControl(cacheControl));
@@ -344,15 +365,16 @@ public class WebMvcAutoConfiguration {
 			}
 		}
 
+		//当beanFactory中不存在RequestContextListener,RequestContextFilter类型的bean时注册
 		@Bean
-		@ConditionalOnMissingBean({ RequestContextListener.class, RequestContextFilter.class })
+		@ConditionalOnMissingBean({RequestContextListener.class, RequestContextFilter.class})
 		@ConditionalOnMissingFilterBean(RequestContextFilter.class)
 		public static RequestContextFilter requestContextFilter() {
 			return new OrderedRequestContextFilter();
 		}
 
 		@Configuration
-		@ConditionalOnProperty(value = "spring.mvc.favicon.enabled", matchIfMissing = true)
+		@ConditionalOnProperty(value = "spring.mvc.favicon.enabled", matchIfMissing = true)//等于true时生效(默认生效).
 		public static class FaviconConfiguration implements ResourceLoaderAware {
 
 			private final ResourceProperties resourceProperties;
@@ -397,6 +419,7 @@ public class WebMvcAutoConfiguration {
 
 	/**
 	 * Configuration equivalent to {@code @EnableWebMvc}.
+	 * 该配置类 相当于@EnableWebMvc的功能
 	 */
 	@Configuration
 	public static class EnableWebMvcConfiguration extends DelegatingWebMvcConfiguration implements ResourceLoaderAware {
@@ -412,8 +435,8 @@ public class WebMvcAutoConfiguration {
 		private ResourceLoader resourceLoader;
 
 		public EnableWebMvcConfiguration(ResourceProperties resourceProperties,
-				ObjectProvider<WebMvcProperties> mvcPropertiesProvider,
-				ObjectProvider<WebMvcRegistrations> mvcRegistrationsProvider, ListableBeanFactory beanFactory) {
+										 ObjectProvider<WebMvcProperties> mvcPropertiesProvider,
+										 ObjectProvider<WebMvcRegistrations> mvcRegistrationsProvider, ListableBeanFactory beanFactory) {
 			this.resourceProperties = resourceProperties;
 			this.mvcProperties = mvcPropertiesProvider.getIfAvailable();
 			this.mvcRegistrations = mvcRegistrationsProvider.getIfUnique();
@@ -424,6 +447,7 @@ public class WebMvcAutoConfiguration {
 		@Override
 		public RequestMappingHandlerAdapter requestMappingHandlerAdapter() {
 			RequestMappingHandlerAdapter adapter = super.requestMappingHandlerAdapter();
+			// 是否忽略默认视图当重定向时,默认为true
 			adapter.setIgnoreDefaultModelOnRedirect(
 					this.mvcProperties == null || this.mvcProperties.isIgnoreDefaultModelOnRedirect());
 			return adapter;
@@ -442,9 +466,17 @@ public class WebMvcAutoConfiguration {
 		@Override
 		public RequestMappingHandlerMapping requestMappingHandlerMapping() {
 			// Must be @Primary for MvcUriComponentsBuilder to work
+			//将父类中声明的RequestMappingHandlerMapping 设置为Primary,这样MvcUriComponentsBuilder才能正确工作
 			return super.requestMappingHandlerMapping();
 		}
 
+		/*
+			默认拦截路径为/**, 首页为在如下路径下查找:
+			classpath:/META-INF/resources/index.html
+			classpath:/resources/index.html
+			classpath:/static/index.html
+			classpath:/public/index.html
+		 */
 		@Bean
 		public WelcomePageHandlerMapping welcomePageHandlerMapping(ApplicationContext applicationContext) {
 			WelcomePageHandlerMapping welcomePageHandlerMapping = new WelcomePageHandlerMapping(
@@ -466,8 +498,7 @@ public class WebMvcAutoConfiguration {
 		private boolean isReadable(Resource resource) {
 			try {
 				return resource.exists() && (resource.getURL() != null);
-			}
-			catch (Exception ex) {
+			} catch (Exception ex) {
 				return false;
 			}
 		}
@@ -485,7 +516,7 @@ public class WebMvcAutoConfiguration {
 		public Validator mvcValidator() {
 			if (!ClassUtils.isPresent("javax.validation.Validator", getClass().getClassLoader())) {
 				return super.mvcValidator();
-			}
+			}//如果不存在javax.validation.Validator,则调用父类,否则,调用WebMvcValidator#get 获取
 			return ValidatorAdapter.get(getApplicationContext(), getValidator());
 		}
 
@@ -501,8 +532,7 @@ public class WebMvcAutoConfiguration {
 		protected ConfigurableWebBindingInitializer getConfigurableWebBindingInitializer() {
 			try {
 				return this.beanFactory.getBean(ConfigurableWebBindingInitializer.class);
-			}
-			catch (NoSuchBeanDefinitionException ex) {
+			} catch (NoSuchBeanDefinitionException ex) {
 				return super.getConfigurableWebBindingInitializer();
 			}
 		}
@@ -536,6 +566,8 @@ public class WebMvcAutoConfiguration {
 			ContentNegotiationManager manager = super.mvcContentNegotiationManager();
 			List<ContentNegotiationStrategy> strategies = manager.getStrategies();
 			ListIterator<ContentNegotiationStrategy> iterator = strategies.listIterator();
+			// 遍历ContentNegotiationManager中配置的ContentNegotiationStrategy,如果ContentNegotiationStrategy是
+			// PathExtensionContentNegotiationStrategy的实例,则包装其为OptionalPathExtensionContentNegotiationStrategy
 			while (iterator.hasNext()) {
 				ContentNegotiationStrategy strategy = iterator.next();
 				if (strategy instanceof PathExtensionContentNegotiationStrategy) {
